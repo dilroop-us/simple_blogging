@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environment
+.venv/
+env/
+venv/
+ENV/
+
+# Environment variables
+.env
+*.env
+
+# Uploaded images
+uploads/
+uploads/*
+
+# VS Code settings
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# PyCharm settings
+.idea/
+
+# Testing and coverage
+.coverage
+*.log
+pytest_cache/
+coverage.xml
+
+# mypy
+.mypy_cache/
+.dmypy.json
+
+# Firestore emulator (if any local setup)
+firebase-debug.log
+.firebaserc
+.firebase/
+
+# Misc
+*.db
+*.sqlite3
