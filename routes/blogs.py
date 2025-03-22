@@ -100,10 +100,15 @@ def get_blog_by_id(blog_id: str):
 
 
 # ✅ Update Blog (PUT = full update)
+
 @router.put("/{blog_id}")
 def update_blog_put(
     blog_id: str,
-    blog: Blog = Depends(),
+    category: str = Form(...),
+    topic: str = Form(...),
+    title: str = Form(...),
+    readTime: str = Form(...),
+    content: str = Form(...),
     image: UploadFile = File(None),
     user_email: str = Depends(get_current_user)
 ):
@@ -115,11 +120,18 @@ def update_blog_put(
     if existing.to_dict().get("author") != user_email:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    blog_data = blog.dict()
-    blog_data["created_at"] = existing.to_dict().get("created_at", datetime.utcnow())
-    blog_data["updated_at"] = datetime.utcnow()
+    blog_data = {
+        "category": category,
+        "topic": topic,
+        "title": title,
+        "readTime": readTime,
+        "content": content,
+        "author": user_email,  # keep existing if needed
+        "avatar": existing.to_dict().get("avatar"),
+        "created_at": existing.to_dict().get("created_at", datetime.utcnow()),
+        "updated_at": datetime.utcnow(),
+    }
 
-    # Save updated image if provided
     if image:
         ext = image.filename.split(".")[-1]
         filename = f"{blog_id}.{ext}"
@@ -133,11 +145,16 @@ def update_blog_put(
     blog_ref.set(blog_data)
     return {"message": "Blog updated successfully (PUT)"}
 
+
 # ✅ Update Blog (PATCH = partial update)
 @router.patch("/{blog_id}")
 def update_blog_patch(
     blog_id: str,
-    blog: BlogUpdate = Depends(),
+    category: Optional[str] = Form(None),
+    topic: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+    readTime: Optional[str] = Form(None),
+    content: Optional[str] = Form(None),
     image: UploadFile = File(None),
     user_email: str = Depends(get_current_user)
 ):
@@ -150,10 +167,21 @@ def update_blog_patch(
     if blog_data.get("author") != user_email:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    updates = blog.dict(exclude_unset=True)
-    updates["updated_at"] = datetime.utcnow()
+    updates = {
+        "updated_at": datetime.utcnow()
+    }
 
-    # Optional image update
+    if category is not None:
+        updates["category"] = category
+    if topic is not None:
+        updates["topic"] = topic
+    if title is not None:
+        updates["title"] = title
+    if readTime is not None:
+        updates["readTime"] = readTime
+    if content is not None:
+        updates["content"] = content
+
     if image:
         ext = image.filename.split(".")[-1]
         filename = f"{blog_id}.{ext}"
@@ -164,6 +192,7 @@ def update_blog_patch(
 
     blog_ref.update(updates)
     return {"message": "Blog updated successfully (PATCH)"}
+
 
 # ✅ Delete Blog
 @router.delete("/{blog_id}")

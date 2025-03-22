@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from database import db
 from schemas import User, UserProfile, UserUpdate, CategoryUpdateRequest
@@ -8,6 +7,8 @@ from datetime import timedelta, datetime
 from uuid import uuid4
 from google.cloud.firestore import FieldFilter
 import os
+from fastapi import Form
+
 
 router = APIRouter()
 UPLOAD_FOLDER = "uploads/profiles/"
@@ -66,9 +67,10 @@ def get_user_profile(user_email: str = Depends(get_current_user)):
     }
 
 
+
 @router.put("/profile")
 def update_user_profile(
-    update_data: UserUpdate,
+    name: str = Form(None),
     profile_image: UploadFile = File(None),
     user_email: str = Depends(get_current_user),
 ):
@@ -78,12 +80,12 @@ def update_user_profile(
         raise HTTPException(status_code=404, detail="User not found")
 
     updates = {}
-    if update_data.name:
-        updates["name"] = update_data.name
+    if name:
+        updates["name"] = name
 
     if profile_image:
         filename = f"{user_email.replace('@', '_')}.jpg"
-        image_path = os.path.join(UPLOAD_FOLDER, filename)
+        image_path = os.path.join("uploads/profiles/", filename)
         with open(image_path, "wb") as img_file:
             img_file.write(profile_image.file.read())
         updates["profile_image"] = image_path
@@ -92,6 +94,7 @@ def update_user_profile(
         user_ref.update(updates)
 
     return {"message": "Profile updated successfully"}
+
 
 @router.get("/categories/all", response_model=list[str])
 def get_all_categories():
