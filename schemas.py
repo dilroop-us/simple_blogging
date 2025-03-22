@@ -28,6 +28,7 @@ class CategoryUpdateRequest(BaseModel):
 
 class Blog(BaseModel):
     author: Optional[str] = None         # Will be auto-set
+    author_email: Optional[str] = None
     category: str
     topic: str
     title: str
@@ -45,10 +46,10 @@ class BlogUpdate(BaseModel):
     imageUrl: Optional[str] = None
     content: Optional[str] = None
 
-class BlogResponse(Blog):
-    id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    class BlogResponse(Blog):
+        id: str
+        created_at: datetime
+        updated_at: Optional[datetime] = None
 
     model_config = {
         "from_attributes": True

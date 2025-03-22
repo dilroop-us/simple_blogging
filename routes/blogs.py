@@ -1,22 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from database import db
 from schemas import Blog, BlogUpdate, BlogResponse
 from auth import get_current_user
 from datetime import datetime
 from uuid import uuid4
 import os
-from fastapi import Form
 from typing import Optional
 
 router = APIRouter()
 UPLOAD_FOLDER = "uploads/blogs/"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+
 # ✅ Get All Blogs
 @router.get("/", response_model=list[BlogResponse])
 def get_all_blogs():
     blogs_ref = db.collection("blogs").stream()
     return [{"id": blog.id, **blog.to_dict()} for blog in blogs_ref]
+
 
 # ✅ Get Blogs by Selected Categories
 @router.get("/by-selected-categories", response_model=list[BlogResponse])
@@ -36,13 +37,15 @@ def get_blogs_by_selected_categories(user_email: str = Depends(get_current_user)
         if blog.to_dict().get("category") in selected_categories
     ]
 
-# ✅ Get Current User's Blogs
+
+# ✅ Get My Blogs
 @router.get("/my-blogs", response_model=list[BlogResponse])
 def get_my_blogs(user_email: str = Depends(get_current_user)):
-    blogs_ref = db.collection("blogs").where("author", "==", user_email).stream()
+    blogs_ref = db.collection("blogs").where("author_email", "==", user_email).stream()
     return [{"id": blog.id, **blog.to_dict()} for blog in blogs_ref]
 
-# ✅ Create Blog with Image Upload
+
+# ✅ Create Blog
 @router.post("/", response_model=dict)
 def create_blog(
     category: str = Form(...),
@@ -55,13 +58,11 @@ def create_blog(
 ):
     blog_id = str(uuid4())
 
-    # Get user info
     user_doc = db.collection("users").document(user_email).get()
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found")
     user = user_doc.to_dict()
 
-    # Construct blog data
     blog_data = {
         "category": category,
         "topic": topic,
@@ -69,12 +70,12 @@ def create_blog(
         "readTime": readTime,
         "content": content,
         "author": user.get("name", user_email),
+        "author_email": user_email,
         "avatar": user.get("profile_image"),
         "created_at": datetime.utcnow(),
         "updated_at": None
     }
 
-    # Save image if provided
     if image:
         ext = image.filename.split(".")[-1]
         filename = f"{blog_id}.{ext}"
@@ -87,20 +88,17 @@ def create_blog(
     return {"message": "Blog created successfully", "blog_id": blog_id}
 
 
+# ✅ Get Blog by ID
 @router.get("/{blog_id}", response_model=BlogResponse)
 def get_blog_by_id(blog_id: str):
     blog_ref = db.collection("blogs").document(blog_id)
     blog_doc = blog_ref.get()
-
     if not blog_doc.exists:
         raise HTTPException(status_code=404, detail="Blog not found")
-
-    blog_data = blog_doc.to_dict()
-    return {"id": blog_doc.id, **blog_data}
+    return {"id": blog_doc.id, **blog_doc.to_dict()}
 
 
-# ✅ Update Blog (PUT = full update)
-
+# ✅ PUT Update
 @router.put("/{blog_id}")
 def update_blog_put(
     blog_id: str,
@@ -117,18 +115,20 @@ def update_blog_put(
     if not existing.exists:
         raise HTTPException(status_code=404, detail="Blog not found")
 
-    if existing.to_dict().get("author_email") != user_email:
+    blog_data = existing.to_dict()
+    if blog_data.get("author_email") != user_email:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    blog_data = {
+    updated_data = {
         "category": category,
         "topic": topic,
         "title": title,
         "readTime": readTime,
         "content": content,
-        "author": user_email,  # keep existing if needed
-        "avatar": existing.to_dict().get("avatar"),
-        "created_at": existing.to_dict().get("created_at", datetime.utcnow()),
+        "author": blog_data.get("author"),
+        "author_email": blog_data.get("author_email"),
+        "avatar": blog_data.get("avatar"),
+        "created_at": blog_data.get("created_at"),
         "updated_at": datetime.utcnow(),
     }
 
@@ -138,15 +138,15 @@ def update_blog_put(
         image_path = os.path.join(UPLOAD_FOLDER, filename)
         with open(image_path, "wb") as f:
             f.write(image.file.read())
-        blog_data["imageUrl"] = image_path
+        updated_data["imageUrl"] = image_path
     else:
-        blog_data["imageUrl"] = existing.to_dict().get("imageUrl")
+        updated_data["imageUrl"] = blog_data.get("imageUrl")
 
-    blog_ref.set(blog_data)
+    blog_ref.set(updated_data)
     return {"message": "Blog updated successfully (PUT)"}
 
 
-# ✅ Update Blog (PATCH = partial update)
+# ✅ PATCH Update
 @router.patch("/{blog_id}")
 def update_blog_patch(
     blog_id: str,
@@ -167,20 +167,13 @@ def update_blog_patch(
     if blog_data.get("author_email") != user_email:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    updates = {
-        "updated_at": datetime.utcnow()
-    }
+    updates = {"updated_at": datetime.utcnow()}
 
-    if category is not None:
-        updates["category"] = category
-    if topic is not None:
-        updates["topic"] = topic
-    if title is not None:
-        updates["title"] = title
-    if readTime is not None:
-        updates["readTime"] = readTime
-    if content is not None:
-        updates["content"] = content
+    if category: updates["category"] = category
+    if topic: updates["topic"] = topic
+    if title: updates["title"] = title
+    if readTime: updates["readTime"] = readTime
+    if content: updates["content"] = content
 
     if image:
         ext = image.filename.split(".")[-1]
@@ -202,7 +195,7 @@ def delete_blog(blog_id: str, user_email: str = Depends(get_current_user)):
     if not blog.exists:
         raise HTTPException(status_code=404, detail="Blog not found")
 
-    if blog.to_dict().get("author") != user_email:
+    if blog.to_dict().get("author_email") != user_email:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     blog_ref.delete()
