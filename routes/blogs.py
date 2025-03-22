@@ -117,7 +117,7 @@ def update_blog_put(
     if not existing.exists:
         raise HTTPException(status_code=404, detail="Blog not found")
 
-    if existing.to_dict().get("author") != user_email:
+    if existing.to_dict().get("author_email") != user_email:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     blog_data = {
@@ -164,7 +164,7 @@ def update_blog_patch(
         raise HTTPException(status_code=404, detail="Blog not found")
 
     blog_data = existing.to_dict()
-    if blog_data.get("author") != user_email:
+    if blog_data.get("author_email") != user_email:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     updates = {
