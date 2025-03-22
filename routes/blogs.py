@@ -6,7 +6,7 @@ from datetime import datetime
 from uuid import uuid4
 import os
 from fastapi import Form
-
+from typing import Optional
 
 router = APIRouter()
 UPLOAD_FOLDER = "uploads/blogs/"
