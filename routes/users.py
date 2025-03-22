@@ -27,7 +27,8 @@ def register_user(user: User):
         "password": hashed_password,
         "created_at": datetime.utcnow(),
         "profile_image": None,
-        "selected_categories": []
+        "selected_categories": [],
+        "favourites": []
     }
     db.collection("users").document(user.email).set(user_data)
     return {"message": "User registered successfully", "user_id": user_id}
@@ -60,7 +61,8 @@ def get_user_profile(user_email: str = Depends(get_current_user)):
         "email": user["email"],
         "created_at": user["created_at"],
         "profile_image": user.get("profile_image"),
-        "selected_categories": user.get("selected_categories", [])
+        "selected_categories": user.get("selected_categories", []),
+        "favourites": user.get("favourites", [])
     }
 
 

@@ -15,6 +15,7 @@ class UserProfile(BaseModel):
     created_at: datetime
     profile_image: Optional[str] = None
     selected_categories: List[str] = []
+    favourites: List[str] = []
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None

@@ -5,6 +5,8 @@ from auth import get_current_user
 from datetime import datetime
 from uuid import uuid4
 import os
+from fastapi import Form
+
 
 router = APIRouter()
 UPLOAD_FOLDER = "uploads/blogs/"
@@ -43,12 +45,15 @@ def get_my_blogs(user_email: str = Depends(get_current_user)):
 # ✅ Create Blog with Image Upload
 @router.post("/", response_model=dict)
 def create_blog(
-    blog: Blog = Depends(),
+    category: str = Form(...),
+    topic: str = Form(...),
+    title: str = Form(...),
+    readTime: str = Form(...),
+    content: str = Form(...),
     image: UploadFile = File(None),
     user_email: str = Depends(get_current_user)
 ):
     blog_id = str(uuid4())
-    blog_data = blog.dict()
 
     # Get user info
     user_doc = db.collection("users").document(user_email).get()
@@ -56,13 +61,20 @@ def create_blog(
         raise HTTPException(status_code=404, detail="User not found")
     user = user_doc.to_dict()
 
-    # Auto-fill author & avatar
-    blog_data["author"] = user.get("name", user_email)
-    blog_data["avatar"] = user.get("profile_image")
-    blog_data["created_at"] = datetime.utcnow()
-    blog_data["updated_at"] = None
+    # Construct blog data
+    blog_data = {
+        "category": category,
+        "topic": topic,
+        "title": title,
+        "readTime": readTime,
+        "content": content,
+        "author": user.get("name", user_email),
+        "avatar": user.get("profile_image"),
+        "created_at": datetime.utcnow(),
+        "updated_at": None
+    }
 
-    # Save blog image
+    # Save image if provided
     if image:
         ext = image.filename.split(".")[-1]
         filename = f"{blog_id}.{ext}"
@@ -73,6 +85,7 @@ def create_blog(
 
     db.collection("blogs").document(blog_id).set(blog_data)
     return {"message": "Blog created successfully", "blog_id": blog_id}
+
 
 @router.get("/{blog_id}", response_model=BlogResponse)
 def get_blog_by_id(blog_id: str):

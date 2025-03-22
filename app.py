@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from database import initialize_global_data
-from routes import users, blogs
+from routes import users, blogs, favourites
 
 # ✅ Initialize FastAPI App
 app = FastAPI(
@@ -11,6 +11,7 @@ app = FastAPI(
 
 # ✅ Register Routes
 app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(favourites.router, prefix="/users", tags=["Favourites"])
 app.include_router(blogs.router, prefix="/blogs", tags=["Blogs"])
 
 # ✅ Startup Event: Ensure predefined categories exist
