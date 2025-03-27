@@ -67,7 +67,6 @@ def get_user_profile(user_email: str = Depends(get_current_user)):
     }
 
 
-
 @router.put("/profile")
 def update_user_profile(
     name: str = Form(None),
@@ -76,6 +75,7 @@ def update_user_profile(
 ):
     user_ref = db.collection("users").document(user_email)
     user_doc = user_ref.get()
+
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -84,16 +84,28 @@ def update_user_profile(
         updates["name"] = name
 
     if profile_image:
-        filename = f"{user_email.replace('@', '_')}.jpg"
-        image_path = os.path.join("uploads/profiles/", filename)
+        ext = profile_image.filename.split('.')[-1]
+        filename = f"{user_email.replace('@', '_')}.{ext}"
+        image_path = os.path.join(UPLOAD_FOLDER, filename)
+
         with open(image_path, "wb") as img_file:
             img_file.write(profile_image.file.read())
+
         updates["profile_image"] = image_path
 
     if updates:
+        updates["updated_at"] = datetime.utcnow()
         user_ref.update(updates)
 
-    return {"message": "Profile updated successfully"}
+    updated_user = user_ref.get().to_dict()
+
+    return {
+        "message": "Profile updated successfully",
+        "updated_data": {
+            "name": updated_user.get("name"),
+            "profile_image": updated_user.get("profile_image")
+        }
+    }
 
 
 @router.get("/categories/all", response_model=list[str])
