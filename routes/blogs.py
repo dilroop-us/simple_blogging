@@ -6,6 +6,8 @@ from datetime import datetime
 from uuid import uuid4
 import os
 from typing import Optional
+from fastapi import Query
+
 
 router = APIRouter()
 UPLOAD_FOLDER = "uploads/blogs/"
@@ -17,6 +19,26 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def get_all_blogs():
     blogs_ref = db.collection("blogs").stream()
     return [{"id": blog.id, **blog.to_dict()} for blog in blogs_ref]
+
+
+@router.get("/search", response_model=list[BlogResponse])
+def search_blogs(
+    query: str = Query(..., description="Search keyword"),
+):
+    blogs_ref = db.collection("blogs").stream()
+    results = []
+
+    for blog in blogs_ref:
+        data = blog.to_dict()
+        if (
+            query.lower() in data.get("title", "").lower()
+            or query.lower() in data.get("topic", "").lower()
+            or query.lower() in data.get("content", "").lower()
+        ):
+            results.append({"id": blog.id, **data})
+
+    return results
+
 
 
 # ✅ Get Blogs by Selected Categories
