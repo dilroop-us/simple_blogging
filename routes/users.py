@@ -8,11 +8,11 @@ from uuid import uuid4
 from google.cloud.firestore import FieldFilter
 import os
 from fastapi import Form
+from utils.firebase_upload import upload_to_firebase
 
 
 router = APIRouter()
-UPLOAD_FOLDER = "uploads/profiles/"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 @router.post("/register")
 def register_user(user: User):
@@ -84,14 +84,8 @@ def update_user_profile(
         updates["name"] = name
 
     if profile_image:
-        ext = profile_image.filename.split('.')[-1]
-        filename = f"{user_email.replace('@', '_')}.{ext}"
-        image_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        with open(image_path, "wb") as img_file:
-            img_file.write(profile_image.file.read())
-
-        updates["profile_image"] = image_path
+        url = upload_to_firebase(profile_image, f"profiles/{profile_image.filename}")
+        updates["profile_image"] = url
 
     if updates:
         updates["updated_at"] = datetime.utcnow()

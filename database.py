@@ -1,11 +1,10 @@
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, storage
 import os
 import json
 import base64
 from dotenv import load_dotenv
 
-# ✅ Load environment variables from .env file
 load_dotenv()
 
 firebase_credentials_str = os.getenv("FIREBASE_CREDENTIALS")
@@ -18,22 +17,22 @@ try:
 except Exception as e:
     raise ValueError(f"Failed to decode FIREBASE_CREDENTIALS: {e}")
 
-# ✅ Initialize Firebase
+# ✅ Initialize Firebase Admin with Storage
 cred = credentials.Certificate(FIREBASE_CREDENTIALS)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+firebase_admin.initialize_app(cred, {
+    "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET")
+})
 
-# ✅ Predefined Blog Categories
-PREDEFINED_CATEGORIES = ["Technology", "Health", "Business", "Education", "Society", "Lifestyle", "Sports", "Culture", "Work" ]
+db = firestore.client()
+bucket = storage.bucket()
+
+PREDEFINED_CATEGORIES = [
+    "Technology", "Health", "Business", "Education", "Society",
+    "Lifestyle", "Sports", "Culture", "Work"
+]
 
 def initialize_global_data():
-    """
-    Ensure predefined blog categories exist in Firestore.
-    """
     for category in PREDEFINED_CATEGORIES:
         category_ref = db.collection("categories").document(category)
         if not category_ref.get().exists:
             category_ref.set({"name": category})
-
-# ✅ Run at startup
-initialize_global_data()
