@@ -1,26 +1,27 @@
 from fastapi import UploadFile
 from google.cloud import storage
-from firebase_admin import credentials
+from google.oauth2 import service_account
 import os
-from dotenv import load_dotenv
 import base64
 import json
+from dotenv import load_dotenv
 
 load_dotenv()
 
-# ✅ Load and decode credentials
-firebase_credentials_str = os.getenv("FIREBASE_CREDENTIALS")
-firebase_credentials_json = json.loads(base64.b64decode(firebase_credentials_str).decode())
-bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+FIREBASE_CREDENTIALS_STR = os.getenv("FIREBASE_CREDENTIALS")
+FIREBASE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET")
 
-# ✅ Create credentials object
-firebase_cred = credentials.Certificate(firebase_credentials_json)
+# ✅ Decode the base64 credentials
+firebase_credentials_dict = json.loads(base64.b64decode(FIREBASE_CREDENTIALS_STR).decode())
 
-def upload_to_firebase(file: UploadFile, folder: str) -> str:
-    storage_client = storage.Client(credentials=firebase_cred)
-    bucket = storage_client.bucket(bucket_name)
+# ✅ Create Google-auth-compatible credentials
+gcs_credentials = service_account.Credentials.from_service_account_info(firebase_credentials_dict)
 
-    blob = bucket.blob(f"{folder}/{file.filename}")
+def upload_to_firebase(file: UploadFile, path: str) -> str:
+    storage_client = storage.Client(credentials=gcs_credentials)
+    bucket = storage_client.bucket(FIREBASE_BUCKET)
+
+    blob = bucket.blob(path)
     blob.upload_from_file(file.file, content_type=file.content_type)
     blob.make_public()
 
