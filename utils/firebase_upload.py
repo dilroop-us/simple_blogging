@@ -30,18 +30,29 @@ def upload_to_firebase(file: UploadFile, path: str) -> str:
 
 def delete_from_firebase(file_url: str):
     """
-    Deletes a file from Firebase Storage using the public URL.
+    Deletes a file from Firebase Storage using the public or download URL.
     """
     if not file_url or "firebase" not in file_url:
-        return  # Invalid or local image
+        return  # Skip if not a valid Firebase URL
 
     bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
-    file_path = file_url.split(f"/o/")[1].split("?")[0]  # Extract path from URL (URL-encoded)
-    file_path = file_path.replace("%2F", "/")  # Decode path
-
     storage_client = storage.Client(credentials=gcs_credentials)
     bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(file_path)
 
-    if blob.exists():
-        blob.delete()
+    try:
+        # Check if it's a download URL (with /o/)
+        if "/o/" in file_url:
+            file_path = file_url.split("/o/")[1].split("?")[0]
+            file_path = file_path.replace("%2F", "/")  # Decode
+        else:
+            # Fallback: Public URL format
+            parts = file_url.split(f"{bucket_name}/")
+            if len(parts) != 2:
+                return  # Unexpected format
+            file_path = parts[1].split("?")[0]  # remove query string if any
+
+        blob = bucket.blob(file_path)
+        if blob.exists():
+            blob.delete()
+    except Exception as e:
+        print(f"Failed to delete file from Firebase: {e}")
