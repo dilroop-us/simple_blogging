@@ -27,14 +27,16 @@ def get_all_blogs(category: Optional[list[str]] = Query(None)):
 # ✅ Search Blogs
 @router.get("/search", response_model=list[BlogResponse])
 def search_blogs(query: str = Query(...)):
-    blogs_ref = db.collection("blogs").stream()
+    all_blogs = list(db.collection("blogs").stream())  # convert to list
+
     return [
         {"id": blog.id, **blog.to_dict()}
-        for blog in blogs_ref
+        for blog in all_blogs
         if query.lower() in blog.to_dict().get("title", "").lower()
         or query.lower() in blog.to_dict().get("topic", "").lower()
         or query.lower() in blog.to_dict().get("content", "").lower()
     ]
+
 
 # ✅ Blogs by Categories
 @router.get("/by-selected-categories", response_model=list[BlogResponse])
