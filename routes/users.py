@@ -8,8 +8,8 @@ from uuid import uuid4
 from google.cloud.firestore import FieldFilter
 import os
 from fastapi import Form
-from utils.firebase_upload import upload_to_firebase
-from utils.delete_uploaded import delete_from_firebase
+from utils.firebase_upload import upload_to_firebase, delete_from_firebase
+# from utils.delete_uploaded import delete_from_firebase
 
 router = APIRouter()
 
