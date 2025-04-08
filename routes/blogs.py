@@ -11,9 +11,18 @@ router = APIRouter()
 
 # ✅ Get All Blogs
 @router.get("/", response_model=list[BlogResponse])
-def get_all_blogs():
+def get_all_blogs(category: Optional[list[str]] = Query(None)):
     blogs_ref = db.collection("blogs").stream()
+
+    if category:
+        return [
+            {"id": blog.id, **blog.to_dict()}
+            for blog in blogs_ref
+            if blog.to_dict().get("category") in category
+        ]
+
     return [{"id": blog.id, **blog.to_dict()} for blog in blogs_ref]
+
 
 # ✅ Search Blogs
 @router.get("/search", response_model=list[BlogResponse])
@@ -29,17 +38,24 @@ def search_blogs(query: str = Query(...)):
 
 # ✅ Blogs by Categories
 @router.get("/by-selected-categories", response_model=list[BlogResponse])
-def get_blogs_by_selected_categories(user_email: str = Depends(get_current_user)):
+def get_blogs_by_selected_categories(
+    user_email: str = Depends(get_current_user),
+    category: Optional[list[str]] = Query(None)
+):
     user_doc = db.collection("users").document(user_email).get()
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found")
+
     selected_categories = user_doc.to_dict().get("selected_categories", [])
     blogs_ref = db.collection("blogs").stream()
+
     return [
         {"id": blog.id, **blog.to_dict()}
         for blog in blogs_ref
-        if blog.to_dict().get("category") in selected_categories
+        if blog.to_dict().get("category") in selected_categories and
+           (category is None or blog.to_dict().get("category") in category)
     ]
+
 
 # ✅ My Blogs
 @router.get("/my-blogs", response_model=list[BlogResponse])
