@@ -35,6 +35,7 @@ def search_blogs(query: str = Query(...)):
         if query.lower() in blog.to_dict().get("title", "").lower()
         or query.lower() in blog.to_dict().get("topic", "").lower()
         or query.lower() in blog.to_dict().get("content", "").lower()
+        or query.lower() in blog.to_dict().get("category", "").lower()
     ]
 
 
