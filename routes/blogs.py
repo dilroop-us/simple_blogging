@@ -6,6 +6,7 @@ from datetime import datetime
 from uuid import uuid4
 from typing import Optional
 from utils.firebase_upload import upload_to_firebase
+from utils.delete_uploaded import delete_from_firebase
 
 router = APIRouter()
 
@@ -147,6 +148,11 @@ def update_blog_put(
     }
 
     if image:
+        # 🔹 Delete old image
+        old_url = blog_data.get("imageUrl")
+        delete_from_firebase(old_url)
+
+        # 🔹 Upload new image
         firebase_path = f"blogs/{blog_id}.{image.filename.split('.')[-1]}"
         image_url = upload_to_firebase(image, firebase_path)
         updated_data["imageUrl"] = image_url
@@ -186,9 +192,14 @@ def update_blog_patch(
     if content: updates["content"] = content
 
     if image:
+        # 🔹 Delete old image
+        old_url = blog_data.get("imageUrl")
+        delete_from_firebase(old_url)
+
+        # 🔹 Upload new image
         firebase_path = f"blogs/{blog_id}.{image.filename.split('.')[-1]}"
         image_url = upload_to_firebase(image, firebase_path)
-        updates["imageUrl"] = image_url
+        updated_data["imageUrl"] = image_url
 
     blog_ref.update(updates)
     return {"message": "Blog updated successfully (PATCH)"}

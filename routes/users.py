@@ -9,7 +9,7 @@ from google.cloud.firestore import FieldFilter
 import os
 from fastapi import Form
 from utils.firebase_upload import upload_to_firebase
-
+from utils.delete_uploaded import delete_from_firebase
 
 router = APIRouter()
 
@@ -79,12 +79,22 @@ def update_user_profile(
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found")
 
+    user_data = user_doc.to_dict()
     updates = {}
+
     if name:
         updates["name"] = name
 
     if profile_image:
-        url = upload_to_firebase(profile_image, f"profiles/{profile_image.filename}")
+        # Delete old profile image if exists
+        old_url = user_data.get("profile_image")
+        if old_url:
+            from utils.firebase_upload import delete_from_firebase
+            delete_from_firebase(old_url)
+
+        # Upload new image
+        path = f"profiles/{user_email.replace('@', '_')}_{profile_image.filename}"
+        url = upload_to_firebase(profile_image, path)
         updates["profile_image"] = url
 
     if updates:
@@ -100,6 +110,7 @@ def update_user_profile(
             "profile_image": updated_user.get("profile_image")
         }
     }
+
 
 
 @router.get("/categories/all", response_model=list[str])
