@@ -6,31 +6,33 @@ from datetime import datetime
 from uuid import uuid4
 from typing import Optional
 from utils.firebase_upload import upload_to_firebase, delete_from_firebase
-# from utils.delete_uploaded import delete_from_firebase
+from google.cloud import firestore
 
 router = APIRouter()
 
 # ✅ Get All Blogs
 @router.get("/", response_model=list[BlogResponse])
-def get_all_blogs(category: Optional[list[str]] = Query(None)):
-    blogs_ref = db.collection("blogs").stream()
+def get_all_blogs(
+    category: Optional[list[str]] = Query(None),
+    page: int = Query(1, ge=1)
+):
+    blogs_ref = db.collection("blogs").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
+    blogs = [
+        {"id": blog.id, **blog.to_dict()}
+        for blog in blogs_ref
+        if not category or blog.to_dict().get("category") in category
+    ]
+    start = (page - 1) * 10
+    return blogs[start:start + 10]
 
-    if category:
-        return [
-            {"id": blog.id, **blog.to_dict()}
-            for blog in blogs_ref
-            if blog.to_dict().get("category") in category
-        ]
-
-    return [{"id": blog.id, **blog.to_dict()} for blog in blogs_ref]
-
-
-# ✅ Search Blogs
+# ✅ Search Blogs (Paginated & Sorted)
 @router.get("/search", response_model=list[BlogResponse])
-def search_blogs(query: str = Query(...)):
-    all_blogs = list(db.collection("blogs").stream())  # convert to list
-
-    return [
+def search_blogs(
+    query: str = Query(...),
+    page: int = Query(1, ge=1)
+):
+    all_blogs = list(db.collection("blogs").order_by("created_at", direction=firestore.Query.DESCENDING).stream())
+    matched = [
         {"id": blog.id, **blog.to_dict()}
         for blog in all_blogs
         if query.lower() in blog.to_dict().get("title", "").lower()
@@ -38,34 +40,48 @@ def search_blogs(query: str = Query(...)):
         or query.lower() in blog.to_dict().get("content", "").lower()
         or query.lower() in blog.to_dict().get("category", "").lower()
     ]
+    start = (page - 1) * 10
+    return matched[start:start + 10]
 
 
-# ✅ Blogs by Categories
+# ✅ Blogs by Selected Categories (Paginated & Sorted)
 @router.get("/by-selected-categories", response_model=list[BlogResponse])
 def get_blogs_by_selected_categories(
     user_email: str = Depends(get_current_user),
-    category: Optional[list[str]] = Query(None)
+    category: Optional[list[str]] = Query(None),
+    page: int = Query(1, ge=1)
 ):
     user_doc = db.collection("users").document(user_email).get()
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found")
 
     selected_categories = user_doc.to_dict().get("selected_categories", [])
-    blogs_ref = db.collection("blogs").stream()
+    blogs_ref = db.collection("blogs").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
 
-    return [
+    filtered = [
         {"id": blog.id, **blog.to_dict()}
         for blog in blogs_ref
         if blog.to_dict().get("category") in selected_categories and
-           (category is None or blog.to_dict().get("category") in category)
+           (not category or blog.to_dict().get("category") in category)
     ]
+    start = (page - 1) * 10
+    return filtered[start:start + 10]
 
 
-# ✅ My Blogs
+# ✅ My Blogs (Paginated & Sorted)
 @router.get("/my-blogs", response_model=list[BlogResponse])
-def get_my_blogs(user_email: str = Depends(get_current_user)):
-    blogs_ref = db.collection("blogs").where("author_email", "==", user_email).stream()
-    return [{"id": blog.id, **blog.to_dict()} for blog in blogs_ref]
+def get_my_blogs(
+    user_email: str = Depends(get_current_user),
+    page: int = Query(1, ge=1)
+):
+    blogs_ref = db.collection("blogs") \
+        .where("author_email", "==", user_email) \
+        .order_by("created_at", direction=firestore.Query.DESCENDING) \
+        .stream()
+    blogs = [{"id": blog.id, **blog.to_dict()} for blog in blogs_ref]
+    start = (page - 1) * 10
+    return blogs[start:start + 10]
+
 
 # ✅ Create Blog
 @router.post("/", response_model=dict)
@@ -148,11 +164,8 @@ def update_blog_put(
     }
 
     if image:
-        # 🔹 Delete old image
         old_url = blog_data.get("imageUrl")
         delete_from_firebase(old_url)
-
-        # 🔹 Upload new image
         firebase_path = f"blogs/{blog_id}.{image.filename.split('.')[-1]}"
         image_url = upload_to_firebase(image, firebase_path)
         updated_data["imageUrl"] = image_url
@@ -192,14 +205,11 @@ def update_blog_patch(
     if content: updates["content"] = content
 
     if image:
-        # 🔹 Delete old image
         old_url = blog_data.get("imageUrl")
         delete_from_firebase(old_url)
-
-        # 🔹 Upload new image
         firebase_path = f"blogs/{blog_id}.{image.filename.split('.')[-1]}"
         image_url = upload_to_firebase(image, firebase_path)
-        updated_data["imageUrl"] = image_url
+        updates["imageUrl"] = image_url
 
     blog_ref.update(updates)
     return {"message": "Blog updated successfully (PATCH)"}
