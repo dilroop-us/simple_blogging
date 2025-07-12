@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Form, Query
 from database import db
 from schemas import BlogResponse
 from auth import get_current_user
 from datetime import datetime
 from uuid import uuid4
 from typing import Optional
-from utils.firebase_upload import upload_to_firebase, delete_from_firebase
 from google.cloud import firestore
 
 router = APIRouter()
@@ -44,7 +43,7 @@ def search_blogs(
     return matched[start:start + 10]
 
 
-# ✅ Blogs by Selected Categories (Paginated & Sorted)
+# ✅ Blogs by Selected Categories
 @router.get("/by-selected-categories", response_model=list[BlogResponse])
 def get_blogs_by_selected_categories(
     user_email: str = Depends(get_current_user),
@@ -68,7 +67,7 @@ def get_blogs_by_selected_categories(
     return filtered[start:start + 10]
 
 
-# ✅ My Blogs (Paginated & Sorted)
+# ✅ My Blogs
 @router.get("/my-blogs", response_model=list[BlogResponse])
 def get_my_blogs(
     user_email: str = Depends(get_current_user),
@@ -91,7 +90,7 @@ def create_blog(
     title: str = Form(...),
     readTime: str = Form(...),
     content: str = Form(...),
-    image: UploadFile = File(None),
+    image_url: Optional[str] = Form(None),  # 🔄 Cloudinary URL from frontend
     user_email: str = Depends(get_current_user)
 ):
     blog_id = str(uuid4())
@@ -110,13 +109,9 @@ def create_blog(
         "author_email": user_email,
         "avatar": user.get("profile_image"),
         "created_at": datetime.utcnow(),
-        "updated_at": None
+        "updated_at": None,
+        "imageUrl": image_url
     }
-
-    if image:
-        firebase_path = f"blogs/{blog_id}.{image.filename.split('.')[-1]}"
-        image_url = upload_to_firebase(image, firebase_path)
-        blog_data["imageUrl"] = image_url
 
     db.collection("blogs").document(blog_id).set(blog_data)
     return {"message": "Blog created successfully", "blog_id": blog_id}
@@ -138,7 +133,7 @@ def update_blog_put(
     title: str = Form(...),
     readTime: str = Form(...),
     content: str = Form(...),
-    image: UploadFile = File(None),
+    image_url: Optional[str] = Form(None),  # 🔄 URL from frontend
     user_email: str = Depends(get_current_user)
 ):
     blog_ref = db.collection("blogs").document(blog_id)
@@ -160,17 +155,9 @@ def update_blog_put(
         "author_email": blog_data["author_email"],
         "avatar": blog_data.get("avatar"),
         "created_at": blog_data["created_at"],
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.utcnow(),
+        "imageUrl": image_url if image_url else blog_data.get("imageUrl")
     }
-
-    if image:
-        old_url = blog_data.get("imageUrl")
-        delete_from_firebase(old_url)
-        firebase_path = f"blogs/{blog_id}.{image.filename.split('.')[-1]}"
-        image_url = upload_to_firebase(image, firebase_path)
-        updated_data["imageUrl"] = image_url
-    else:
-        updated_data["imageUrl"] = blog_data.get("imageUrl")
 
     blog_ref.set(updated_data)
     return {"message": "Blog updated successfully (PUT)"}
@@ -184,7 +171,7 @@ def update_blog_patch(
     title: Optional[str] = Form(None),
     readTime: Optional[str] = Form(None),
     content: Optional[str] = Form(None),
-    image: UploadFile = File(None),
+    image_url: Optional[str] = Form(None),  # 🔄 Cloudinary URL
     user_email: str = Depends(get_current_user)
 ):
     blog_ref = db.collection("blogs").document(blog_id)
@@ -203,13 +190,7 @@ def update_blog_patch(
     if title: updates["title"] = title
     if readTime: updates["readTime"] = readTime
     if content: updates["content"] = content
-
-    if image:
-        old_url = blog_data.get("imageUrl")
-        delete_from_firebase(old_url)
-        firebase_path = f"blogs/{blog_id}.{image.filename.split('.')[-1]}"
-        image_url = upload_to_firebase(image, firebase_path)
-        updates["imageUrl"] = image_url
+    if image_url: updates["imageUrl"] = image_url
 
     blog_ref.update(updates)
     return {"message": "Blog updated successfully (PATCH)"}

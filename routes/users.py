@@ -1,19 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Form
 from database import db
-from schemas import User, UserProfile, UserUpdate, CategoryUpdateRequest
+from schemas import User, UserProfile, CategoryUpdateRequest
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta, datetime
 from uuid import uuid4
 from google.cloud.firestore import FieldFilter
-import os
-from fastapi import Form
-from utils.firebase_upload import upload_to_firebase, delete_from_firebase
-# from utils.delete_uploaded import delete_from_firebase
 
 router = APIRouter()
 
-
+# ✅ Register
 @router.post("/register")
 def register_user(user: User):
     users_ref = db.collection("users").where(filter=FieldFilter("email", "==", user.email)).stream()
@@ -34,6 +30,8 @@ def register_user(user: User):
     db.collection("users").document(user.email).set(user_data)
     return {"message": "User registered successfully", "user_id": user_id}
 
+
+# ✅ Login
 @router.post("/login")
 def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
     user_email = form_data.username
@@ -49,6 +47,8 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
     access_token = create_access_token(data={"sub": user_doc["email"]}, expires_delta=timedelta(days=7))
     return {"access_token": access_token, "token_type": "bearer"}
 
+
+# ✅ Get Profile
 @router.get("/profile", response_model=UserProfile)
 def get_user_profile(user_email: str = Depends(get_current_user)):
     user_ref = db.collection("users").document(user_email)
@@ -67,10 +67,11 @@ def get_user_profile(user_email: str = Depends(get_current_user)):
     }
 
 
+# ✅ Update Profile (Name + Cloudinary Image URL)
 @router.put("/profile")
 def update_user_profile(
     name: str = Form(None),
-    profile_image: UploadFile = File(None),
+    profile_image: str = Form(None),  # 🔄 URL string (e.g. from Cloudinary)
     user_email: str = Depends(get_current_user),
 ):
     user_ref = db.collection("users").document(user_email)
@@ -79,23 +80,13 @@ def update_user_profile(
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user_data = user_doc.to_dict()
     updates = {}
 
     if name:
         updates["name"] = name
 
     if profile_image:
-        # Delete old profile image if exists
-        old_url = user_data.get("profile_image")
-        if old_url:
-            from utils.firebase_upload import delete_from_firebase
-            delete_from_firebase(old_url)
-
-        # Upload new image
-        path = f"profiles/{user_email.replace('@', '_')}_{profile_image.filename}"
-        url = upload_to_firebase(profile_image, path)
-        updates["profile_image"] = url
+        updates["profile_image"] = profile_image  # ✅ Save Cloudinary URL
 
     if updates:
         updates["updated_at"] = datetime.utcnow()
@@ -112,12 +103,14 @@ def update_user_profile(
     }
 
 
-
+# ✅ Get All Categories
 @router.get("/categories/all", response_model=list[str])
 def get_all_categories():
     categories_ref = db.collection("categories").stream()
     return [doc.to_dict()["name"] for doc in categories_ref]
 
+
+# ✅ Get User Categories
 @router.get("/categories", response_model=list[str])
 def get_user_categories(user_email: str = Depends(get_current_user)):
     user_ref = db.collection("users").document(user_email)
@@ -127,6 +120,8 @@ def get_user_categories(user_email: str = Depends(get_current_user)):
     user_data = doc.to_dict()
     return user_data.get("selected_categories", [])
 
+
+# ✅ Update Selected Categories
 @router.put("/categories")
 def update_user_categories(data: CategoryUpdateRequest, user_email: str = Depends(get_current_user)):
     global_categories = [doc.to_dict()["name"] for doc in db.collection("categories").stream()]
